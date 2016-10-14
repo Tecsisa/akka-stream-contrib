@@ -5,7 +5,7 @@ package akka.stream.contrib.ftp
 
 import java.net.InetAddress
 import akka.stream.{ Attributes, Outlet, SourceShape }
-import akka.stream.Attributes.{ InputBuffer, name }
+import akka.stream.Attributes.name
 import akka.stream.contrib.ftp.FtpConnectionSettings.{ BasicFtpConnectionSettings, DefaultFtpConnectionSettings, DefaultFtpPort }
 import akka.stream.contrib.ftp.FtpCredentials.{ AnonFtpCredentials, NonAnonFtpCredentials }
 import akka.stream.scaladsl.Source
@@ -50,13 +50,9 @@ final class FtpSource[FtpClient] private (
 
   def createLogicAndMaterializedValue(inheritedAttributes: Attributes) = {
 
-    val InputBuffer(initialBuffer, maxBuffer) =
-      inheritedAttributes.getAttribute(classOf[InputBuffer], InputBuffer(16, 16))
-
     val logic = new GraphStageLogic(shape) {
       import shape._
 
-      private var ftpIterator: Option[ftpLike.FtpIterator] = None
       private var buffer: Vector[FtpFile] = Vector.empty
       private var numFilesTotal: Long = 0L
 
@@ -64,8 +60,7 @@ final class FtpSource[FtpClient] private (
         super.preStart()
         try {
           ftpLike.connect(connectionSettings)
-          ftpIterator = Some(ftpLike.initIterator(ftpClient))
-          fillBuffer(initialBuffer)
+          fillBuffer()
         } catch {
           case NonFatal(t) =>
             ftpLike.disconnect()
@@ -81,7 +76,7 @@ final class FtpSource[FtpClient] private (
 
       setHandler(out, new OutHandler {
         def onPull(): Unit = {
-          fillBuffer(maxBuffer)
+          fillBuffer()
           buffer match {
             case Seq() =>
               finalize()
@@ -110,13 +105,11 @@ final class FtpSource[FtpClient] private (
         }
       }) // end of handler
 
-      private[this] def eof: Boolean = !ftpIterator.exists(ftpLike.hasNext)
+      //      private[this] def eof: Boolean = !ftpIterator.exists(ftpLike.hasNext)
 
-      private[this] def fillBuffer(size: Int) =
-        if (buffer.length < size && !eof) {
-          val pageSize = size - buffer.length
-          val newPage = ftpIterator.map(ftpLike.next(_, pageSize)).getOrElse(List())
-          buffer ++= newPage
+      private[this] def fillBuffer() =
+        if (buffer.isEmpty) {
+          buffer ++= ftpLike.listFiles()
         }
 
       private[this] def matSuccess() = matValue.success(numFilesTotal)

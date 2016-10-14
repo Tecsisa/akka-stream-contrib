@@ -7,8 +7,7 @@ import org.apache.commons.net.ftp.{ FTPClient, FTPListParseEngine }
 import scala.collection.immutable
 
 trait Ftp {
-
-  type FtpIterator = FTPListParseEngine
+  _: FtpLike[FTPClient] =>
 
   def connect(
     connectionSettings: FtpConnectionSettings
@@ -32,13 +31,8 @@ trait Ftp {
     }
   }
 
-  def hasNext(iterator: FtpIterator): Boolean = iterator.hasNext
-
-  def initIterator(implicit ftpClient: FTPClient): FtpIterator =
-    ftpClient.initiateListParsing()
-
-  def next(iterator: FtpIterator, size: Int): immutable.Seq[FtpFile] =
-    iterator.getNext(size).map { file =>
+  def listFiles()(implicit ftpClient: FTPClient): immutable.Seq[FtpFile] =
+    ftpClient.listFiles().map { file =>
       FtpFile(file.getName)
-    }.toList
+    }.toVector
 }

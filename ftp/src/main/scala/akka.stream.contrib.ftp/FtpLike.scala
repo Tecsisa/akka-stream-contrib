@@ -7,18 +7,11 @@ import org.apache.commons.net.ftp.FTPClient
 import scala.collection.immutable
 
 trait FtpLike[FtpClient] {
-
-  type FtpIterator
-
   def connect(connectionSettings: FtpConnectionSettings)(implicit ftpClient: FtpClient): Unit
 
   def disconnect()(implicit ftpClient: FtpClient): Unit
 
-  def hasNext(iterator: FtpIterator): Boolean
-
-  def initIterator(implicit ftpClient: FtpClient): FtpIterator
-
-  def next(iterator: FtpIterator, size: Int): immutable.Seq[FtpFile]
+  def listFiles()(implicit ftpClient: FtpClient): immutable.Seq[FtpFile]
 }
 
 object FtpLike {
