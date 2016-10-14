@@ -10,13 +10,13 @@ import akka.stream.contrib.ftp.FtpConnectionSettings.{ BasicFtpConnectionSetting
 import akka.stream.contrib.ftp.FtpCredentials.{ AnonFtpCredentials, NonAnonFtpCredentials }
 import akka.stream.scaladsl.Source
 import akka.stream.stage.{ GraphStageLogic, GraphStageWithMaterializedValue, OutHandler }
-import org.apache.commons.net.ftp.{ FTPClient, FTPListParseEngine }
+import org.apache.commons.net.ftp.FTPClient
 import scala.concurrent.{ Future, Promise }
 import scala.util.control.NonFatal
 
 object FtpSource {
 
-  final val SourceName = "ftpSource"
+  final val SourceName = "FtpSource"
 
   def apply(): Source[FtpFile, Future[Long]] = apply(DefaultFtpConnectionSettings)
 
@@ -31,12 +31,16 @@ object FtpSource {
   def apply(hostname: String, port: Int, username: String, password: String): Source[FtpFile, Future[Long]] =
     apply(BasicFtpConnectionSettings(InetAddress.getByName(hostname), port, NonAnonFtpCredentials(username, password)))
 
-  def apply(connectionSettings: FtpConnectionSettings): Source[FtpFile, Future[Long]] =
-    Source.fromGraph(new FtpSource(connectionSettings)).withAttributes(name(SourceName))
+  def apply(connectionSettings: FtpConnectionSettings): Source[FtpFile, Future[Long]] = {
+    implicit val ftpClient: FTPClient = new FTPClient
+    Source.fromGraph(new FtpSource[FTPClient](connectionSettings)).withAttributes(name(SourceName))
+  }
 
 }
 
-final class FtpSource private (connectionSettings: FtpConnectionSettings)
+final class FtpSource[FtpClient] private (
+  connectionSettings: FtpConnectionSettings
+)(implicit ftpClient: FtpClient, ftpLike: FtpLike[FtpClient])
   extends GraphStageWithMaterializedValue[SourceShape[FtpFile], Future[Long]] {
   import FtpSource._
 
@@ -52,32 +56,26 @@ final class FtpSource private (connectionSettings: FtpConnectionSettings)
     val logic = new GraphStageLogic(shape) {
       import shape._
 
-      private var ftpClient: FTPClient = null
-      private var ftpListParseEngine: FTPListParseEngine = null
+      private var ftpIterator: Option[ftpLike.FtpIterator] = None
       private var buffer: Vector[FtpFile] = Vector.empty
       private var numFilesTotal: Long = 0L
 
       override def preStart(): Unit = {
         super.preStart()
         try {
-          connect(
-            connectionSettings.host,
-            connectionSettings.port,
-            connectionSettings.credentials.username,
-            connectionSettings.credentials.password
-          )
-          ftpListParseEngine = ftpClient.initiateListParsing()
+          ftpLike.connect(connectionSettings)
+          ftpIterator = Some(ftpLike.initIterator(ftpClient))
           fillBuffer(initialBuffer)
         } catch {
           case NonFatal(t) =>
-            disconnect()
+            ftpLike.disconnect()
             matFailure(t)
             failStage(t)
         }
       }
 
       override def postStop(): Unit = {
-        disconnect()
+        ftpLike.disconnect()
         super.postStop()
       }
 
@@ -89,13 +87,15 @@ final class FtpSource private (connectionSettings: FtpConnectionSettings)
               finalize()
             case head +: Seq() =>
               push(out, head)
+              numFilesTotal += 1
               finalize()
             case head +: tail =>
               push(out, head)
+              numFilesTotal += 1
               buffer = tail
           }
           def finalize() = try {
-            disconnect()
+            ftpLike.disconnect()
           } finally {
             matSuccess()
             complete(out)
@@ -103,41 +103,20 @@ final class FtpSource private (connectionSettings: FtpConnectionSettings)
         } // end of onPull
 
         override def onDownstreamFinish(): Unit = try {
-          disconnect()
+          ftpLike.disconnect()
         } finally {
           matSuccess()
           super.onDownstreamFinish()
         }
       }) // end of handler
 
-      private[this] def connect(host: InetAddress, port: Int, username: String, password: String) = {
-        if (ftpClient == null) {
-          ftpClient = new FTPClient
-        }
-        if (!ftpClient.isConnected) {
-          ftpClient.connect(host, port)
-          ftpClient.login(username, password)
-          ftpClient.enterLocalPassiveMode()
-        }
-      }
-
-      private[this] def disconnect() = {
-        if (ftpClient != null) {
-          if (ftpClient.isConnected) {
-            ftpClient.logout()
-            ftpClient.disconnect()
-          }
-        }
-      }
-
-      private[this] def eof = !ftpListParseEngine.hasNext
+      private[this] def eof: Boolean = !ftpIterator.exists(ftpLike.hasNext)
 
       private[this] def fillBuffer(size: Int) =
         if (buffer.length < size && !eof) {
           val pageSize = size - buffer.length
-          val newPage: Array[FtpFile] = ftpListParseEngine.getNext(pageSize)
+          val newPage = ftpIterator.map(ftpLike.next(_, pageSize)).getOrElse(List())
           buffer ++= newPage
-          numFilesTotal += newPage.length
         }
 
       private[this] def matSuccess() = matValue.success(numFilesTotal)
