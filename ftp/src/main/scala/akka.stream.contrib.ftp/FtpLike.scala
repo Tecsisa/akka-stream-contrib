@@ -3,19 +3,23 @@
  */
 package akka.stream.contrib.ftp
 
+import com.jcraft.jsch.JSch
 import org.apache.commons.net.ftp.FTPClient
 import scala.collection.immutable
 
 trait FtpLike[FtpClient] {
-  def connect(connectionSettings: FtpConnectionSettings)(implicit ftpClient: FtpClient): Unit
 
-  def disconnect()(implicit ftpClient: FtpClient): Unit
+  type Handler
 
-  def listFiles()(implicit ftpClient: FtpClient): immutable.Seq[FtpFile]
+  def connect(connectionSettings: FtpConnectionSettings)(implicit ftpClient: FtpClient): Handler
+
+  def disconnect(handler: Handler)(implicit ftpClient: FtpClient): Unit
+
+  def listFiles(handler: Handler): immutable.Seq[FtpFile]
 }
 
 object FtpLike {
   // type class instances
   implicit val ftpLikeInstance = new FtpLike[FTPClient] with Ftp
-
+  implicit val sFtpLikeInstance = new FtpLike[JSch] with sFtp
 }

@@ -9,9 +9,11 @@ import scala.collection.immutable
 trait Ftp {
   _: FtpLike[FTPClient] =>
 
+  type Handler = FTPClient
+
   def connect(
     connectionSettings: FtpConnectionSettings
-  )(implicit ftpClient: FTPClient): Unit = {
+  )(implicit ftpClient: FTPClient): Handler = {
     if (ftpClient != null) {
       ftpClient.connect(connectionSettings.host, connectionSettings.port)
       ftpClient.login(
@@ -20,9 +22,10 @@ trait Ftp {
       )
       ftpClient.enterLocalPassiveMode()
     }
+    ftpClient
   }
 
-  def disconnect()(implicit ftpClient: FTPClient): Unit = {
+  def disconnect(handler: Handler)(implicit ftpClient: FTPClient): Unit = {
     if (ftpClient != null) {
       if (ftpClient.isConnected) {
         ftpClient.logout()
@@ -31,8 +34,8 @@ trait Ftp {
     }
   }
 
-  def listFiles()(implicit ftpClient: FTPClient): immutable.Seq[FtpFile] =
-    ftpClient.listFiles().map { file =>
+  def listFiles(handler: Handler): immutable.Seq[FtpFile] =
+    handler.listFiles().map { file =>
       FtpFile(file.getName)
     }.toVector
 }

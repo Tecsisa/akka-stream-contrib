@@ -53,24 +53,25 @@ final class FtpSource[FtpClient] private (
     val logic = new GraphStageLogic(shape) {
       import shape._
 
+      private var handler: ftpLike.Handler = _
       private var buffer: Vector[FtpFile] = Vector.empty
       private var numFilesTotal: Long = 0L
 
       override def preStart(): Unit = {
         super.preStart()
         try {
-          ftpLike.connect(connectionSettings)
+          handler = ftpLike.connect(connectionSettings)
           fillBuffer()
         } catch {
           case NonFatal(t) =>
-            ftpLike.disconnect()
+            disconnect()
             matFailure(t)
             failStage(t)
         }
       }
 
       override def postStop(): Unit = {
-        ftpLike.disconnect()
+        disconnect()
         super.postStop()
       }
 
@@ -90,7 +91,7 @@ final class FtpSource[FtpClient] private (
               buffer = tail
           }
           def finalize() = try {
-            ftpLike.disconnect()
+            disconnect()
           } finally {
             matSuccess()
             complete(out)
@@ -98,7 +99,7 @@ final class FtpSource[FtpClient] private (
         } // end of onPull
 
         override def onDownstreamFinish(): Unit = try {
-          ftpLike.disconnect()
+          disconnect()
         } finally {
           matSuccess()
           super.onDownstreamFinish()
@@ -109,8 +110,11 @@ final class FtpSource[FtpClient] private (
 
       private[this] def fillBuffer() =
         if (buffer.isEmpty) {
-          buffer ++= ftpLike.listFiles()
+          buffer ++= ftpLike.listFiles(handler)
         }
+
+      private[this] def disconnect(): Unit =
+        ftpLike.disconnect(handler)
 
       private[this] def matSuccess() = matValue.success(numFilesTotal)
 
