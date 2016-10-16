@@ -4,17 +4,17 @@
 package akka.stream.contrib.ftp
 
 import java.net.InetAddress
-import akka.stream.{ Attributes, Outlet, SourceShape }
 import akka.stream.impl.Stages.DefaultAttributes.IODispatcher
 import akka.stream.Attributes.name
 import akka.stream.contrib.ftp.FtpConnectionSettings.{ BasicFtpConnectionSettings, DefaultFtpPort }
 import akka.stream.contrib.ftp.FtpCredentials.{ AnonFtpCredentials, NonAnonFtpCredentials }
 import akka.stream.scaladsl.Source
-import akka.stream.stage.{ GraphStageLogic, GraphStageWithMaterializedValue, OutHandler }
 import org.apache.commons.net.ftp.FTPClient
-import scala.concurrent.{ Future, Promise }
-import scala.util.control.NonFatal
+import scala.concurrent.Future
 
+/**
+ * @author Juan José Vázquez Delgado
+ */
 object FtpSource {
 
   final val SourceName = "FtpSource"
@@ -36,99 +36,16 @@ object FtpSource {
       )
     )
 
-  def apply(connectionSettings: FtpConnectionSettings): Source[FtpFile, Future[Long]] = {
-    implicit val ftpClient: FTPClient = new FTPClient
+  def apply(connectionSettings: FtpConnectionSettings): Source[FtpFile, Future[Long]] =
     Source
-      .fromGraph(new FtpSource[FTPClient](connectionSettings))
+      .fromGraph(FtpSource(SourceName, connectionSettings))
       .withAttributes(name(SourceName) and IODispatcher)
-  }
 
 }
 
-final class FtpSource[FtpClient] private (
+final case class FtpSource(
+  name:               String,
   connectionSettings: FtpConnectionSettings
-)(implicit ftpClient: FtpClient, ftpLike: FtpLike[FtpClient])
-  extends GraphStageWithMaterializedValue[SourceShape[FtpFile], Future[Long]] {
-  import FtpSource._
-
-  val shape = SourceShape(Outlet[FtpFile](s"$SourceName.out"))
-
-  def createLogicAndMaterializedValue(inheritedAttributes: Attributes) = {
-
-    val matValuePromise = Promise[Long]()
-
-    val logic = new GraphStageLogic(shape) {
-      import shape._
-
-      private var handler: ftpLike.Handler = _
-      private var buffer: Vector[FtpFile] = Vector.empty
-      private var numFilesTotal: Long = 0L
-
-      override def preStart(): Unit = {
-        super.preStart()
-        try {
-          handler = ftpLike.connect(connectionSettings)
-          fillBuffer()
-        } catch {
-          case NonFatal(t) =>
-            disconnect()
-            matFailure(t)
-            failStage(t)
-        }
-      }
-
-      override def postStop(): Unit = {
-        disconnect()
-        matSuccess()
-        super.postStop()
-      }
-
-      setHandler(out, new OutHandler {
-        def onPull(): Unit = {
-          fillBuffer()
-          buffer match {
-            case Seq() =>
-              finalize()
-            case head +: Seq() =>
-              push(out, head)
-              numFilesTotal += 1
-              finalize()
-            case head +: tail =>
-              push(out, head)
-              numFilesTotal += 1
-              buffer = tail
-          }
-          def finalize() = try {
-            disconnect()
-          } finally {
-            complete(out)
-          }
-        } // end of onPull
-
-        override def onDownstreamFinish(): Unit = try {
-          disconnect()
-        } finally {
-          matSuccess()
-          super.onDownstreamFinish()
-        }
-      }) // end of handler
-
-      private[this] def fillBuffer(): Unit =
-        if (buffer.isEmpty) {
-          buffer ++= ftpLike.listFiles(handler)
-        }
-
-      private[this] def disconnect(): Unit =
-        ftpLike.disconnect(handler)
-
-      private[this] def matSuccess(): Boolean =
-        matValuePromise.trySuccess(numFilesTotal)
-
-      private[this] def matFailure(t: Throwable): Boolean =
-        matValuePromise.tryFailure(t)
-
-    } // end of stage logic
-
-    (logic, matValuePromise.future)
-  }
+)(implicit val ftpLike: FtpLike[FTPClient]) extends FtpSourceGeneric[FTPClient] {
+  val ftpClient: FTPClient = new FTPClient
 }

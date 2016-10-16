@@ -3,9 +3,12 @@
  */
 package akka.stream.contrib.ftp
 
-import org.apache.commons.net.ftp.{ FTPClient, FTPListParseEngine }
+import org.apache.commons.net.ftp.FTPClient
 import scala.collection.immutable
 
+/**
+ * @author Juan José Vázquez Delgado
+ */
 trait Ftp {
   _: FtpLike[FTPClient] =>
 

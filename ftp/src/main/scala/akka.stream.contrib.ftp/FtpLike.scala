@@ -7,6 +7,9 @@ import com.jcraft.jsch.JSch
 import org.apache.commons.net.ftp.FTPClient
 import scala.collection.immutable
 
+/**
+ * @author Juan José Vázquez Delgado
+ */
 trait FtpLike[FtpClient] {
 
   type Handler

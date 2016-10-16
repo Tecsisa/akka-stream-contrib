@@ -6,6 +6,9 @@ package akka.stream.contrib.ftp
 import com.jcraft.jsch.{ ChannelSftp, JSch }
 import scala.collection.immutable
 
+/**
+ * @author Juan José Vázquez Delgado
+ */
 trait sFtp {
   _: FtpLike[JSch] =>
 
