@@ -23,13 +23,7 @@ sealed abstract class FtpConnectionSettings extends Product with Serializable {
   def credentials: FtpCredentials
 }
 object FtpConnectionSettings {
-  final val DefaultFtpHostname = "localhost"
   final val DefaultFtpPort = 21
-  case object DefaultFtpConnectionSettings extends FtpConnectionSettings {
-    val host = InetAddress.getByName(DefaultFtpHostname)
-    val port = DefaultFtpPort
-    val credentials = FtpCredentials.AnonFtpCredentials
-  }
   final case class BasicFtpConnectionSettings(
     host:        InetAddress,
     port:        Int,

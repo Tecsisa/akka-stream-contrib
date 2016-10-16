@@ -5,8 +5,9 @@ package akka.stream.contrib.ftp
 
 import java.net.InetAddress
 import akka.stream.{ Attributes, Outlet, SourceShape }
+import akka.stream.impl.Stages.DefaultAttributes.IODispatcher
 import akka.stream.Attributes.name
-import akka.stream.contrib.ftp.FtpConnectionSettings.{ BasicFtpConnectionSettings, DefaultFtpConnectionSettings, DefaultFtpPort }
+import akka.stream.contrib.ftp.FtpConnectionSettings.{ BasicFtpConnectionSettings, DefaultFtpPort }
 import akka.stream.contrib.ftp.FtpCredentials.{ AnonFtpCredentials, NonAnonFtpCredentials }
 import akka.stream.scaladsl.Source
 import akka.stream.stage.{ GraphStageLogic, GraphStageWithMaterializedValue, OutHandler }
@@ -18,8 +19,6 @@ object FtpSource {
 
   final val SourceName = "FtpSource"
 
-  def apply(): Source[FtpFile, Future[Long]] = apply(DefaultFtpConnectionSettings)
-
   def apply(hostname: String): Source[FtpFile, Future[Long]] = apply(hostname, DefaultFtpPort)
 
   def apply(hostname: String, port: Int): Source[FtpFile, Future[Long]] =
@@ -29,11 +28,19 @@ object FtpSource {
     apply(hostname, DefaultFtpPort, username, password)
 
   def apply(hostname: String, port: Int, username: String, password: String): Source[FtpFile, Future[Long]] =
-    apply(BasicFtpConnectionSettings(InetAddress.getByName(hostname), port, NonAnonFtpCredentials(username, password)))
+    apply(
+      BasicFtpConnectionSettings(
+        InetAddress.getByName(hostname),
+        port,
+        NonAnonFtpCredentials(username, password)
+      )
+    )
 
   def apply(connectionSettings: FtpConnectionSettings): Source[FtpFile, Future[Long]] = {
     implicit val ftpClient: FTPClient = new FTPClient
-    Source.fromGraph(new FtpSource[FTPClient](connectionSettings)).withAttributes(name(SourceName))
+    Source
+      .fromGraph(new FtpSource[FTPClient](connectionSettings))
+      .withAttributes(name(SourceName) and IODispatcher)
   }
 
 }
@@ -44,11 +51,11 @@ final class FtpSource[FtpClient] private (
   extends GraphStageWithMaterializedValue[SourceShape[FtpFile], Future[Long]] {
   import FtpSource._
 
-  val matValue = Promise[Long]()
-
   val shape = SourceShape(Outlet[FtpFile](s"$SourceName.out"))
 
   def createLogicAndMaterializedValue(inheritedAttributes: Attributes) = {
+
+    val matValuePromise = Promise[Long]()
 
     val logic = new GraphStageLogic(shape) {
       import shape._
@@ -72,6 +79,7 @@ final class FtpSource[FtpClient] private (
 
       override def postStop(): Unit = {
         disconnect()
+        matSuccess()
         super.postStop()
       }
 
@@ -93,7 +101,6 @@ final class FtpSource[FtpClient] private (
           def finalize() = try {
             disconnect()
           } finally {
-            matSuccess()
             complete(out)
           }
         } // end of onPull
@@ -106,9 +113,7 @@ final class FtpSource[FtpClient] private (
         }
       }) // end of handler
 
-      //      private[this] def eof: Boolean = !ftpIterator.exists(ftpLike.hasNext)
-
-      private[this] def fillBuffer() =
+      private[this] def fillBuffer(): Unit =
         if (buffer.isEmpty) {
           buffer ++= ftpLike.listFiles(handler)
         }
@@ -116,12 +121,14 @@ final class FtpSource[FtpClient] private (
       private[this] def disconnect(): Unit =
         ftpLike.disconnect(handler)
 
-      private[this] def matSuccess() = matValue.success(numFilesTotal)
+      private[this] def matSuccess(): Boolean =
+        matValuePromise.trySuccess(numFilesTotal)
 
-      private[this] def matFailure(t: Throwable) = matValue.failure(t)
+      private[this] def matFailure(t: Throwable): Boolean =
+        matValuePromise.tryFailure(t)
 
     } // end of stage logic
 
-    (logic, matValue.future)
+    (logic, matValuePromise.future)
   }
 }
