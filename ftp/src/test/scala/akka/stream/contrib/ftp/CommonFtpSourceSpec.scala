@@ -7,7 +7,7 @@ import akka.stream.scaladsl.Keep
 import akka.stream.testkit.scaladsl.TestSink
 
 class FtpSourceSpec extends CommonFtpSourceSpec with BaseFtpSpec
-//class sFtpSourceSpec extends CommonFtpSourceSpec with BaseSftpSpec
+class SFtpSourceSpec extends CommonFtpSourceSpec with BaseSFtpSpec
 
 trait CommonFtpSourceSpec extends BaseSpec {
 
@@ -20,7 +20,7 @@ trait CommonFtpSourceSpec extends BaseSpec {
           .toMat(TestSink.probe)(Keep.both)
           .run()
       probe
-        .request(31) // more demand than existing files
+        .request(40) // more demand than existing files
         .expectNextN(numFilesExpected.toLong)
 
       totalFiles.futureValue shouldBe numFilesExpected

@@ -24,5 +24,5 @@ trait FtpLike[FtpClient] {
 object FtpLike {
   // type class instances
   implicit val ftpLikeInstance = new FtpLike[FTPClient] with Ftp
-  implicit val sFtpLikeInstance = new FtpLike[JSch] with sFtp
+  implicit val sFtpLikeInstance = new FtpLike[JSch] with SFtp
 }

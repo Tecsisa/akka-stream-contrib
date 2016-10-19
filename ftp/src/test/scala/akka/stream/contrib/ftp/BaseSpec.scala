@@ -18,7 +18,7 @@ import scala.util.Try
 trait BaseSpec extends WordSpec with Matchers with BeforeAndAfterAll with ScalaFutures {
 
   final val BasePort = 21000
-  final val FtpRootDir = "./target/res/home"
+  final val FtpRootDir = "target/res/home"
   final val UsersFile = new File(getClass.getClassLoader.getResource("users.properties").getFile)
   final val KeyPairProviderFile =
     new File(getClass.getClassLoader.getResource("hostkey.pem").getFile)

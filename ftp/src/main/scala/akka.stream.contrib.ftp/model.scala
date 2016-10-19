@@ -29,6 +29,12 @@ object FtpConnectionSettings {
     port:        Int,
     credentials: FtpCredentials
   ) extends FtpConnectionSettings
+  final case class SshBasicFtpConnectionSettings(
+    host:                  InetAddress,
+    port:                  Int,
+    credentials:           FtpCredentials,
+    strictHostKeyChecking: Boolean        = true
+  ) extends FtpConnectionSettings
 }
 
 sealed abstract class FtpCredentials extends Product with Serializable {

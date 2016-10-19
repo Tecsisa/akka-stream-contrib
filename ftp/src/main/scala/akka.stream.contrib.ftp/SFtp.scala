@@ -3,13 +3,14 @@
  */
 package akka.stream.contrib.ftp
 
+import akka.stream.contrib.ftp.FtpConnectionSettings.SshBasicFtpConnectionSettings
 import com.jcraft.jsch.{ ChannelSftp, JSch }
 import scala.collection.immutable
 
 /**
  * @author Juan José Vázquez Delgado
  */
-trait sFtp {
+trait SFtp {
   _: FtpLike[JSch] =>
 
   type Handler = ChannelSftp
@@ -20,6 +21,14 @@ trait sFtp {
       connectionSettings.host.getHostAddress,
       connectionSettings.port
     )
+    session.setPassword(connectionSettings.credentials.password) // TODO
+    connectionSettings match {
+      case SshBasicFtpConnectionSettings(_, _, _, strictHostKeyChecking) =>
+        val config = new java.util.Properties
+        config.setProperty("StrictHostKeyChecking", if (strictHostKeyChecking) "yes" else "no")
+        session.setConfig(config)
+      case _ => // ignore
+    }
     session.connect()
     val channel = session.openChannel("sftp").asInstanceOf[ChannelSftp]
     channel.connect()
@@ -40,9 +49,11 @@ trait sFtp {
 
   def listFiles(handler: Handler): immutable.Seq[FtpFile] = {
     import scala.collection.JavaConversions.iterableAsScalaIterable
-    handler.ls(".").map {
-      case entry: handler.LsEntry => FtpFile(entry.getFilename)
-      case _                      => sys.error("") // TODO
+    val entries =
+      handler.ls(".").toSeq.filter { case entry: Handler#LsEntry => !entry.getAttrs.isDir } // TODO
+    entries.map {
+      case entry: Handler#LsEntry => FtpFile(entry.getFilename)
+      case _                      => FtpFile("") // TODO
     }.toVector
   }
 }

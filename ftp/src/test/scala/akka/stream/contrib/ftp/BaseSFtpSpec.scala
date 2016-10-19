@@ -4,6 +4,7 @@
 package akka.stream.contrib.ftp
 
 import akka.stream.scaladsl.Source
+import org.apache.sshd.common.file.virtualfs.VirtualFileSystemFactory
 import org.apache.sshd.server.SshServer
 import org.apache.sshd.server.auth.password.PasswordAuthenticator
 import org.apache.sshd.server.auth.pubkey.PublickeyAuthenticator
@@ -13,13 +14,14 @@ import org.apache.sshd.server.scp.ScpCommandFactory
 import org.apache.sshd.server.subsystem.sftp.SftpSubsystemFactory
 import scala.concurrent.Future
 import java.security.PublicKey
+import java.nio.file.Paths
 
-trait BaseSftpSpec extends BaseSpec {
+trait BaseSFtpSpec extends BaseSpec {
 
   protected var sshd: SshServer = null
 
   final def createSource(): Source[FtpFile, Future[Long]] =
-    FtpSource("localhost", port.getOrElse(BasePort)) // TODO
+    SFtpSource("localhost", port.getOrElse(BasePort), "anonymous", "anonymous")
 
   final def startServer(): Unit = {
     sshd = SshServer.setUpDefaultServer()
@@ -37,12 +39,13 @@ trait BaseSftpSpec extends BaseSpec {
       def authenticate(username: String, key: PublicKey, session: ServerSession): Boolean = true
     }
     sshd.setPublickeyAuthenticator(publickeyAuthenticator)
+    sshd.setFileSystemFactory(new VirtualFileSystemFactory(Paths.get(FtpRootDir).toAbsolutePath))
     sshd.start()
   }
 
   final def stopServer(): Unit = {
     if (sshd != null) {
-      sshd.stop(true)
+      sshd.stop()
       sshd = null
     }
   }
