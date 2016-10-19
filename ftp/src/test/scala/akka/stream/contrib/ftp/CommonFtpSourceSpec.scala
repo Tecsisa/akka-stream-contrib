@@ -6,8 +6,12 @@ package akka.stream.contrib.ftp
 import akka.stream.scaladsl.Keep
 import akka.stream.testkit.scaladsl.TestSink
 
-class FtpSourceSpec extends CommonFtpSourceSpec with BaseFtpSpec
-class SFtpSourceSpec extends CommonFtpSourceSpec with BaseSFtpSpec
+final class FtpSourceSpec extends CommonFtpSourceSpec with BaseFtpSpec
+final class SFtpSourceSpec extends CommonFtpSourceSpec with BaseSFtpSpec
+final class FtpsSourceSpec extends CommonFtpSourceSpec with BaseFtpsSpec {
+  val authValue: String = "TLS"
+  val useImplicit: Boolean = false
+}
 
 trait CommonFtpSourceSpec extends BaseSpec {
 

@@ -18,7 +18,7 @@ trait BaseFtpSpec extends BaseSpec {
 
   protected var ftpServer: FtpServer = null
 
-  final def createSource(): Source[FtpFile, Future[Long]] =
+  protected def createSource(): Source[FtpFile, Future[Long]] =
     FtpSource("localhost", port.getOrElse(BasePort))
 
   final def startServer(): Unit = {
@@ -42,9 +42,9 @@ trait BaseFtpSpec extends BaseSpec {
     }
   }
 
-  private[this] def createFtpServerFactory(port: Option[Int]) = {
+  protected def createFtpServerFactory(port: Option[Int]) = {
 
-    assert(UsersFile.exists())
+    assert(UsersFile.exists)
 
     val fsf = new NativeFileSystemFactory
     fsf.setCreateHome(true)

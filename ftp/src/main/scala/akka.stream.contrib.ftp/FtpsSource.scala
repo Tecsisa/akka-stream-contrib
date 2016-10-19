@@ -13,14 +13,13 @@ import java.net.InetAddress
 /**
  * @author Juan José Vázquez Delgado
  */
-object FtpSource extends FtpSourceFactory[FtpSource] {
-
-  final val SourceName = "FtpSource"
+object FtpsSource extends FtpSourceFactory[FtpsSource] {
+  final val SourceName = "FtpsSource"
 
   val sourceName = SourceName
 
-  def createSource(connectionSettings: FtpConnectionSettings): FtpSource =
-    FtpSource(sourceName, connectionSettings)
+  def createSource(connectionSettings: FtpConnectionSettings): FtpsSource =
+    FtpsSource(sourceName, connectionSettings)
 
   def apply(hostname: String): Source[FtpFile, Future[Long]] = apply(hostname, DefaultFtpPort)
 
@@ -40,7 +39,7 @@ object FtpSource extends FtpSourceFactory[FtpSource] {
     )
 }
 
-final case class FtpSource(
+final case class FtpsSource(
   name:               String,
   connectionSettings: FtpConnectionSettings
 )(implicit val ftpLike: FtpLike[FTPClient]) extends FtpSourceGeneric[FTPClient] {

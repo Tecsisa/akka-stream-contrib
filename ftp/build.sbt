@@ -12,3 +12,5 @@ libraryDependencies ++= Seq(
   "ch.qos.logback" % "logback-classic" % "1.1.7" % "test", // EPL v1.0
   "ch.qos.logback" % "logback-core" % "1.1.7" % "test" // EPL v1.0
 )
+
+parallelExecution in Test := false

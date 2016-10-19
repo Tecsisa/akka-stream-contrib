@@ -3,8 +3,6 @@
  */
 package akka.stream.contrib.ftp
 
-import akka.stream.impl.Stages.DefaultAttributes.IODispatcher
-import akka.stream.Attributes.name
 import akka.stream.contrib.ftp.FtpConnectionSettings.{ SshBasicFtpConnectionSettings, DefaultFtpPort }
 import akka.stream.contrib.ftp.FtpCredentials.{ AnonFtpCredentials, NonAnonFtpCredentials }
 import akka.stream.scaladsl.Source
@@ -15,9 +13,14 @@ import java.net.InetAddress
 /**
  * @author Juan José Vázquez Delgado
  */
-object SFtpSource {
+object SFtpSource extends FtpSourceFactory[SFtpSource] {
 
   final val SourceName = "SFtpSource"
+
+  val sourceName: String = SourceName
+
+  def createSource(connectionSettings: FtpConnectionSettings): SFtpSource =
+    SFtpSource(sourceName, connectionSettings)
 
   def apply(hostname: String): Source[FtpFile, Future[Long]] = apply(hostname, DefaultFtpPort)
 
@@ -38,15 +41,9 @@ object SFtpSource {
         strictHostKeyChecking = false // TODO
       )
     )
-
-  def apply(connectionSettings: FtpConnectionSettings): Source[FtpFile, Future[Long]] =
-    Source
-      .fromGraph(SFtpSource(SourceName, connectionSettings))
-      .withAttributes(name(SourceName) and IODispatcher)
-
 }
 
-final case class SFtpSource(
+case class SFtpSource(
   name:               String,
   connectionSettings: FtpConnectionSettings
 )(implicit val ftpLike: FtpLike[JSch]) extends FtpSourceGeneric[JSch] {
